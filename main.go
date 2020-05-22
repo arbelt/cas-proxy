@@ -90,6 +90,7 @@ var app = &cli.App{
 		targets := makeTargets(conf.UpstreamURL)
 		log.Printf("Proxying traffic to %d targets: %+v\n", len(targets), conf.UpstreamURL)
 		e.Use(middleware.Proxy(middleware.NewRoundRobinBalancer(targets)))
+		e.Use(middleware.Secure())
 		return e.Start(fmt.Sprintf(":%d", ctx.Int("port")))
 	},
 	Flags: []cli.Flag{
