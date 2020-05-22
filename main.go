@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"strings"
@@ -20,8 +21,18 @@ import (
 type Config struct {
 	CasURL       *url.URL
 	ListenAddr   string
-	UpstreamURL  *url.URL
+	UpstreamURL  []*url.URL
 	AllowedUsers []string `mapstructure:"allowed_users"`
+}
+
+func makeTargets(upstream []*url.URL) []*middleware.ProxyTarget {
+	out := make([]*middleware.ProxyTarget, len(upstream))
+	for i, v := range upstream {
+		out[i] = &middleware.ProxyTarget{
+			URL: v,
+		}
+	}
+	return out
 }
 
 var app = &cli.App{
@@ -29,36 +40,40 @@ var app = &cli.App{
 	UseShortOptionHandling: true,
 	Action: func(ctx *cli.Context) error {
 		var conf Config
-		upstream, err := url.Parse(ctx.String("upstream"))
-		if err != nil {
-			fmt.Println(err)
-			return err
+		upstreams := ctx.StringSlice("upstream")
+		conf.UpstreamURL = make([]*url.URL, len(upstreams))
+		for i, v := range upstreams {
+			parsed, err := url.ParseRequestURI(v)
+			if err != nil {
+				return err
+			}
+			conf.UpstreamURL[i] = parsed
 		}
-		conf.UpstreamURL = upstream
 		conf.AllowedUsers = ctx.StringSlice("users")
-		fmt.Printf("%v\n", conf.AllowedUsers)
 		e := echo.New()
+		e.HideBanner = true
 		e.Use(middleware.Logger())
 		e.Pre(middleware.HTTPSNonWWWRedirect())
 		if ctx.IsSet("cas-url") {
 			casUrl, err := url.Parse(ctx.String("cas-url"))
 			if err != nil {
-				return err
+				return cli.Exit(err, 1)
 			}
 			casMw := echo_cas.New(&cas.Options{
 				URL: casUrl,
 			})
+			log.Printf("Using CAS middleware: %s\n", casUrl)
 			e.Use(casMw.All)
 		}
 		if len(conf.AllowedUsers) > 0 {
 			mdl, err := model.NewModelFromString(basicModel)
 			if err != nil {
-				return err
+				return cli.Exit(err, 1)
 			}
 			pa := string_adapter2.NewAdapter(createPolicy(conf.AllowedUsers))
 			enf, err := casbin.NewEnforcer(mdl, pa)
 			if err != nil {
-				return err
+				return cli.Exit(err, 1)
 			}
 			enf.LoadPolicy()
 			casbinMw := casbin_mw.New(casbin_mw.Config{
@@ -68,18 +83,17 @@ var app = &cli.App{
 					return cas.Attributes(r).Get("mail")
 				},
 			})
+			log.Printf("Using CASBIN middleware: %v\n", conf.AllowedUsers)
 			e.Use(casbinMw)
 		}
-		targets := []*middleware.ProxyTarget{
-			{
-				URL: conf.UpstreamURL,
-			},
-		}
+
+		targets := makeTargets(conf.UpstreamURL)
+		log.Printf("Proxying traffic to %d targets: %+v\n", len(targets), conf.UpstreamURL)
 		e.Use(middleware.Proxy(middleware.NewRoundRobinBalancer(targets)))
 		return e.Start(fmt.Sprintf(":%d", ctx.Int("port")))
 	},
 	Flags: []cli.Flag{
-		&cli.StringFlag{
+		&cli.StringSliceFlag{
 			Name:    "upstream",
 			EnvVars: []string{"UPSTREAM_URL"},
 		},
