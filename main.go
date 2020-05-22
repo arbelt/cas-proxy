@@ -137,42 +137,8 @@ m = r.sub == p.sub && keyMatch(r.obj, p.obj) && keyMatch(r.act, p.act)
 `
 
 func main() {
-	app.Run(os.Args)
-	//var c Config = loadConfig()
-	//fmt.Println(c.UpstreamURL.String())
-	//fmt.Println(createPolicy(c.AllowedUsers))
-	//sa := scas.NewAdapter(createPolicy(c.AllowedUsers))
-	//e := echo.New()
-	//e.Use(middleware.Logger())
-	//casMw := echo_cas.New(&cas.Options{
-	//	URL: c.CasURL,
-	//})
-	//mdl, err := model.NewModelFromString(basicModel)
-	//if err != nil {
-	//	panic(err)
-	//}
-	//enforcer, err := casbin.NewEnforcer(mdl, sa)
-	//if err != nil {
-	//	panic(err)
-	//}
-	//e.Pre(middleware.HTTPSNonWWWRedirect())
-	//e.Use(middleware.Secure())
-	//enforcer.LoadPolicy()
-	//casbinMw := echo_casbin.New(echo_casbin.Config{
-	//	Enforcer: enforcer,
-	//	UserFunc: func(ctx echo.Context) string {
-	//		r := ctx.Request()
-	//		return cas.Attributes(r).Get("mail")
-	//	},
-	//})
-	//e.Use(casMw.All, casbinMw)
-	//targets := []*middleware.ProxyTarget{
-	//	{
-	//		URL: c.UpstreamURL,
-	//	},
-	//}
-	//e.Use(middleware.Proxy(middleware.NewRoundRobinBalancer(targets)))
-	//if err := e.Start(fmt.Sprintf(":%s", viper.GetString("listen.port"))); err != nil {
-	//	log.Fatal(err)
-	//}
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
