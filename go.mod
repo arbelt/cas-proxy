@@ -11,6 +11,7 @@ require (
 	github.com/labstack/echo/v4 v4.1.16
 	github.com/qiangmzsx/string-adapter v1.0.0
 	github.com/qiangmzsx/string-adapter/v2 v2.0.2
+	github.com/sirupsen/logrus v1.2.0
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.0
 	github.com/urfave/cli/v2 v2.2.0

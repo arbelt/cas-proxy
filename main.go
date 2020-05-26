@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net/url"
@@ -13,7 +14,7 @@ import (
 	"github.com/casbin/casbin/v2/model"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	string_adapter2 "github.com/qiangmzsx/string-adapter/v2"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/cas.v2"
 )
@@ -39,6 +40,10 @@ var app = &cli.App{
 	Name:                   "cas-proxy",
 	UseShortOptionHandling: true,
 	Action: func(ctx *cli.Context) error {
+		if ctx.Bool("verbose"){
+			logrus.SetLevel(logrus.DebugLevel)
+		}
+
 		var conf Config
 		upstreams := ctx.StringSlice("upstream")
 		conf.UpstreamURL = make([]*url.URL, len(upstreams))
@@ -62,33 +67,61 @@ var app = &cli.App{
 			casMw := echo_cas.New(&cas.Options{
 				URL: casUrl,
 			})
-			log.Printf("Using CAS middleware: %s\n", casUrl)
+			logrus.Printf("Using CAS middleware: %s\n", casUrl)
 			e.Use(casMw.All)
 		}
-		if len(conf.AllowedUsers) > 0 {
+
+		var enforcer *casbin.Enforcer
+		switch {
+		case ctx.String("users-file") != "":
+			file, err := os.Open(ctx.String("users-file"))
+			if err != nil {
+				return err
+			}
+			defer file.Close()
 			mdl, err := model.NewModelFromString(basicModel)
 			if err != nil {
-				return cli.Exit(err, 1)
+				return err
 			}
-			pa := string_adapter2.NewAdapter(createPolicy(conf.AllowedUsers))
-			enf, err := casbin.NewEnforcer(mdl, pa)
+			enforcer, err = casbin.NewEnforcer(mdl)
 			if err != nil {
-				return cli.Exit(err, 1)
+				return err
 			}
-			enf.LoadPolicy()
+			scanner := bufio.NewScanner(file)
+			for scanner.Scan() {
+				txt := strings.TrimSpace(scanner.Text())
+				enforcer.AddPolicy(txt, "*", "*")
+			}
+		case ctx.IsSet("users"):
+			mdl, err := model.NewModelFromString(basicModel)
+			if err != nil {
+				return err
+			}
+			enforcer, err = casbin.NewEnforcer(mdl)
+			if err != nil {
+				return err
+			}
+			users := ctx.StringSlice("users")
+			for _, u := range users {
+				enforcer.AddPolicy(u, "*", "*")
+			}
+		}
+
+		if enforcer != nil {
 			casbinMw := casbin_mw.New(casbin_mw.Config{
-				Enforcer: enf,
-				UserFunc: func(c echo.Context) string {
-					r := c.Request()
+				Enforcer: enforcer,
+				UserFunc: func(ctx echo.Context) string {
+					r := ctx.Request()
 					return cas.Attributes(r).Get("mail")
 				},
 			})
-			log.Printf("Using CASBIN middleware: %v\n", conf.AllowedUsers)
+			logrus.Infof("Using CASBIN middleware: %d authorized subjects.\n",
+				len(enforcer.GetAllSubjects()))
 			e.Use(casbinMw)
 		}
 
 		targets := makeTargets(conf.UpstreamURL)
-		log.Printf("Proxying traffic to %d targets: %+v\n", len(targets), conf.UpstreamURL)
+		logrus.Infof("Proxying traffic to %d targets: %+v\n", len(targets), conf.UpstreamURL)
 		e.Use(middleware.Proxy(middleware.NewRoundRobinBalancer(targets)))
 		e.Use(middleware.Secure())
 		return e.Start(fmt.Sprintf(":%d", ctx.Int("port")))
@@ -111,15 +144,17 @@ var app = &cli.App{
 			Name:    "users",
 			EnvVars: []string{"ALLOWED_USERS"},
 		},
+		&cli.StringFlag{
+			Name: "users-file",
+			EnvVars: []string{"ALLOWED_USERS_FILE"},
+			TakesFile: true,
+			Usage: "File containing allowed users (one per line). Takes precedence over USERS",
+		},
+		&cli.BoolFlag{
+			Name: "verbose",
+			Aliases: []string{"v"},
+		},
 	},
-}
-
-func createPolicy(users []string) string {
-	var sb strings.Builder
-	for _, u := range users {
-		fmt.Fprintln(&sb, "p, ", strings.TrimSpace(u), ", *, *")
-	}
-	return sb.String()
 }
 
 var basicModel string = `
@@ -143,3 +178,4 @@ func main() {
 		log.Fatal(err)
 	}
 }
+
