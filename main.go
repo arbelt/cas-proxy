@@ -90,7 +90,9 @@ var app = &cli.App{
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
 				txt := strings.TrimSpace(scanner.Text())
-				enforcer.AddPolicy(txt, "*", "*")
+				if txt != "" {
+					enforcer.AddPolicy(txt, "*", "*")
+				}
 			}
 		case ctx.IsSet("users"):
 			mdl, err := model.NewModelFromString(basicModel)
@@ -103,7 +105,9 @@ var app = &cli.App{
 			}
 			users := ctx.StringSlice("users")
 			for _, u := range users {
-				enforcer.AddPolicy(u, "*", "*")
+				if u != "" {
+					enforcer.AddPolicy(u, "*", "*")
+				}
 			}
 		}
 
