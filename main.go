@@ -40,7 +40,7 @@ var app = &cli.App{
 	Name:                   "cas-proxy",
 	UseShortOptionHandling: true,
 	Action: func(ctx *cli.Context) error {
-		if ctx.Bool("verbose"){
+		if ctx.Bool("verbose") {
 			logrus.SetLevel(logrus.DebugLevel)
 		}
 
@@ -94,6 +94,7 @@ var app = &cli.App{
 					enforcer.AddPolicy(txt, "*", "*")
 				}
 			}
+
 		case ctx.IsSet("users"):
 			mdl, err := model.NewModelFromString(basicModel)
 			if err != nil {
@@ -138,7 +139,7 @@ var app = &cli.App{
 		&cli.IntFlag{
 			Name:    "port",
 			EnvVars: []string{"PORT"},
-			Value: 3000,
+			Value:   3000,
 		},
 		&cli.StringFlag{
 			Name:    "cas-url",
@@ -149,13 +150,13 @@ var app = &cli.App{
 			EnvVars: []string{"ALLOWED_USERS"},
 		},
 		&cli.StringFlag{
-			Name: "users-file",
-			EnvVars: []string{"ALLOWED_USERS_FILE"},
+			Name:      "users-file",
+			EnvVars:   []string{"ALLOWED_USERS_FILE"},
 			TakesFile: true,
-			Usage: "File containing allowed users (one per line). Takes precedence over USERS",
+			Usage:     "File containing allowed users (one per line). Takes precedence over USERS",
 		},
 		&cli.BoolFlag{
-			Name: "verbose",
+			Name:    "verbose",
 			Aliases: []string{"v"},
 		},
 	},
@@ -182,4 +183,3 @@ func main() {
 		log.Fatal(err)
 	}
 }
-
